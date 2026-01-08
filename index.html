@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Interactive Baghdad Map</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+      background: #111;
+      color: #eee;
+    }
+
+    #app {
+      display: grid;
+      grid-template-columns: 3fr 1fr;
+      height: 100%;
+    }
+
+    #map-container {
+      position: relative;
+      background: radial-gradient(circle at 50% 50%, #2b3a3a 0%, #101820 60%, #05070a 100%);
+      overflow: hidden;
+      border-right: 1px solid #333;
+    }
+
+    #map-svg {
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+      user-select: none;
+    }
+
+    #map-svg:active {
+      cursor: grabbing;
+    }
+
+    #sidebar {
+      padding: 1rem;
+      background: #181818;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+    }
+
+    #sidebar h1 {
+      font-size: 1.4rem;
+      margin: 0 0 0.5rem 0;
+    }
+
+    #sidebar small {
+      color: #aaa;
+    }
+
+    #info-title {
+      margin-top: 1.25rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    #info-body {
+      margin-top: 0.5rem;
+      line-height: 1.4;
+      font-size: 0.9rem;
+      color: #ddd;
+    }
+
+    #hint {
+      margin-top: auto;
+      font-size: 0.8rem;
+      color: #999;
+      border-top: 1px solid #333;
+      padding-top: 0.75rem;
+    }
+
+    .building {
+      cursor: pointer;
+      transition: transform 0.1s ease-out;
+    }
+
+    .building:hover {
+      transform: scale(1.05);
+    }
+
+    .building-outline {
+      stroke: #111;
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .label {
+      font-size: 6px;
+      fill: #f9f6e8;
+      pointer-events: none;
+      text-anchor: middle;
+    }
+
+    .river {
+      fill: #1c5275;
+      stroke: #69b7ff;
+      stroke-width: 1.5;
+      opacity: 0.9;
+    }
+
+    .city-wall {
+      fill: none;
+      stroke: #f3e2b8;
+      stroke-width: 1.2;
+      stroke-dasharray: 1 2;
+    }
+
+    .city-disk {
+      fill: #3f4c30;
+      stroke: #d9c78a;
+      stroke-width: 0.6;
+      opacity: 0.95;
+    }
+
+    .road {
+      fill: none;
+      stroke: #f1e3c1;
+      stroke-width: 0.4;
+      stroke-dasharray: 0.5 1;
+      opacity: 0.9;
+    }
+
+    .dot {
+      fill: #f1e3c1;
+      opacity: 0.9;
+    }
+
+    #reset-btn {
+      margin-top: 0.75rem;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #222;
+      color: #ddd;
+      cursor: pointer;
+    }
+
+    #reset-btn:hover {
+      background: #2c2c2c;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="map-container">
+    <!-- ViewBox defines a virtual coordinate system.
+         We’ll zoom/pan by changing the <g> transform. -->
+    <svg id="map-svg" viewBox="-120 -120 240 240">
+      <!-- Group that will be transformed for zoom & pan -->
+      <g id="viewport">
+
+        <!-- River ring surrounding the city -->
+        <circle class="river" cx="0" cy="0" r="105" />
+
+        <!-- City disk and wall -->
+        <circle class="city-disk" cx="0" cy="0" r="70" />
+        <circle class="city-wall" cx="0" cy="0" r="72" />
+
+        <!-- Radial roads -->
+        <g id="roads">
+          <line class="road" x1="0" y1="-72" x2="0" y2="-15" />
+          <line class="road" x1="0" y1="72" x2="0" y2="15" />
+          <line class="road" x1="-72" y1="0" x2="-15" y2="0" />
+          <line class="road" x1="72" y1="0" x2="15" y2="0" />
+          <line class="road" x1="-51" y1="-51" x2="-10" y2="-10" />
+          <line class="road" x1="51" y1="-51" x2="10" y2="-10" />
+          <line class="road" x1="-51" y1="51" x2="-10" y2="10" />
+          <line class="road" x1="51" y1="51" x2="10" y2="10" />
+        </g>
+
+        <!-- Central dot (reference) -->
+        <circle class="dot" cx="0" cy="0" r="1.5" />
+
+        <!-- Buildings -->
+        <!-- House of Wisdom in the center -->
+        <g class="building"
+           data-name="House of Wisdom (Bayt al-Hikma)"
+           data-description="The House of Wisdom was a major intellectual center during the Islamic Golden Age in Baghdad. Scholars from many lands gathered here to translate, preserve, and expand knowledge in mathematics, astronomy, philosophy, medicine, and more.">
+          <rect x="-18" y="-10" width="36" height="20" rx="2" ry="2" fill="#c9a96a" class="building-outline" />
+          <rect x="-16" y="-8" width="32" height="16" fill="#e8d7a1" opacity="0.9" class="building-outline" />
+          <circle cx="0" cy="-10" r="6" fill="#d5c087" class="building-outline" />
+          <circle cx="0" cy="-10" r="4" fill="#f3ecd0" />
+          <text x="0" y="16" class="label">House of Wisdom</text>
+        </g>
+
+        <!-- Grand Mosque -->
+        <g class="building"
+           data-name="Great Mosque"
+           data-description="A large congregational mosque symbolizing the religious life of Baghdad. Mosques like this were centers of worship, teaching, and community discussion."
+        >
+          <rect x="-10" y="-60" width="20" height="16" rx="2" ry="2" fill="#b88a4a" class="building-outline" />
+          <circle cx="0" cy="-62" r="4" fill="#e6d1a0" class="building-outline" />
+          <rect x="9" y="-70" width="2" height="16" fill="#d9c78a" />
+          <circle cx="10" cy="-54" r="1.6" fill="#f5edd3" />
+          <text x="0" y="-40" class="label">Great Mosque</text>
+        </g>
+
+        <!-- Palace complex -->
+        <g class="building"
+           data-name="Caliphal Palace"
+           data-description="A stylized palace complex representing the seat of political power. Courts, gardens, and reception halls were used for governance, diplomacy, and ceremony."
+        >
+          <rect x="35" y="-10" width="26" height="22" rx="2" ry="2" fill="#b08248" class="building-outline" />
+          <rect x="37" y="-8" width="22" height="18" fill="#e1c58d" opacity="0.92" class="building-outline" />
+          <circle cx="48" cy="-12" r="4" fill="#d5bc86" class="building-outline" />
+          <text x="48" y="16" class="label">Caliphal Palace</text>
+        </g>
+
+        <!-- Market / Bazaar -->
+        <g class="building"
+           data-name="Main Bazaar"
+           data-description="A bustling marketplace where merchants traded textiles, spices, books, metalwork, and goods from across the known world."
+        >
+          <rect x="-54" y="5" width="24" height="16" fill="#c0904f" class="building-outline" />
+          <rect x="-52" y="7" width="20" height="12" fill="#f0d39a" opacity="0.9" class="building-outline" />
+          <text x="-42" y="26" class="label">Bazaar</text>
+        </g>
+
+        <!-- Library / Scholars' quarter -->
+        <g class="building"
+           data-name="Scholars' Quarter"
+           data-description="A symbolic cluster of smaller libraries, study circles, and homes of scholars who were part of Baghdad’s intellectual life."
+        >
+          <rect x="-12" y="38" width="14" height="10" fill="#c09a5b" class="building-outline" />
+          <rect x="2" y="38" width="14" height="10" fill="#c09a5b" class="building-outline" />
+          <rect x="-5" y="50" width="14" height="10" fill="#c09a5b" class="building-outline" />
+          <text x="2" y="34" class="label">Scholars' Quarter</text>
+        </g>
+
+        <!-- Bridge across the river -->
+        <g id="bridge">
+          <line x1="-110" y1="10" x2="-80" y2="10" stroke="#f1e3c1" stroke-width="2" />
+          <line x1="80" y1="10" x2="110" y2="10" stroke="#f1e3c1" stroke-width="2" />
+        </g>
+
+      </g>
+    </svg>
+  </div>
+
+  <div id="sidebar">
+    <div>
+      <h1>Baghdad – Stylised Map</h1>
+      <small>Scroll to zoom • Drag to move • Click buildings</small>
+      <button id="reset-btn">Reset view</button>
+      <div id="info-title">House of Wisdom (Bayt al-Hikma)</div>
+      <div id="info-body">
+        Click around the city. The House of Wisdom is placed at the center, reflecting Baghdad’s role in the Islamic Golden Age.
+      </div>
+    </div>
+
+    <div id="hint">
+      This is a simplified, symbolic map inspired by historical Baghdad, not a precise reconstruction.
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- Zoom & Pan logic ---
+  const svg = document.getElementById("map-svg");
+  const viewport = document.getElementById("viewport");
+  const resetBtn = document.getElementById("reset-btn");
+
+  let scale = 1;       // zoom level
+  let minScale = 0.5;
+  let maxScale = 4;
+  let translateX = 0;  // pan offsets in SVG coords
+  let translateY = 0;
+
+  let isPanning = false;
+  let startX = 0;
+  let startY = 0;
+  let startTranslateX = 0;
+  let startTranslateY = 0;
+
+  function applyTransform() {
+    viewport.setAttribute(
+      "transform",
+      `translate(${translateX},${translateY}) scale(${scale})`
+    );
+  }
+
+  // Mouse wheel zoom
+  svg.addEventListener("wheel", (event) => {
+    event.preventDefault();
+
+    const delta = event.deltaY;
+    const zoomFactor = 1.1;
+    const oldScale = scale;
+
+    if (delta > 0) {
+      scale = Math.max(minScale, scale / zoomFactor);
+    } else {
+      scale = Math.min(maxScale, scale * zoomFactor);
+    }
+
+    // Zoom around the mouse position
+    const pt = svg.createSVGPoint();
+    pt.x = event.clientX;
+    pt.y = event.clientY;
+    const cursor = pt.matrixTransform(svg.getScreenCTM().inverse());
+
+    translateX = cursor.x - (cursor.x - translateX) * (scale / oldScale);
+    translateY = cursor.y - (cursor.y - translateY) * (scale / oldScale);
+
+    applyTransform();
+  });
+
+  // Panning with mouse drag
+  svg.addEventListener("mousedown", (event) => {
+    if (event.button !== 0) return; // left button only
+    isPanning = true;
+    startX = event.clientX;
+    startY = event.clientY;
+    startTranslateX = translateX;
+    startTranslateY = translateY;
+  });
+
+  window.addEventListener("mousemove", (event) => {
+    if (!isPanning) return;
+    const dx = (event.clientX - startX) / scale;
+    const dy = (event.clientY - startY) / scale;
+    translateX = startTranslateX + dx;
+    translateY = startTranslateY + dy;
+    applyTransform();
+  });
+
+  window.addEventListener("mouseup", () => {
+    isPanning = false;
+  });
+
+  // Reset view
+  resetBtn.addEventListener("click", () => {
+    scale = 1;
+    translateX = 0;
+    translateY = 0;
+    applyTransform();
+  });
+
+  // --- Building click info ---
+  const infoTitle = document.getElementById("info-title");
+  const infoBody = document.getElementById("info-body");
+
+  document.querySelectorAll(".building").forEach((b) => {
+    b.addEventListener("click", (event) => {
+      // Prevent drag from also counting as click pan start
+      event.stopPropagation();
+      const name = b.getAttribute("data-name") || "Building";
+      const desc = b.getAttribute("data-description") || "No description available.";
+      infoTitle.textContent = name;
+      infoBody.textContent = desc;
+    });
+  });
+
+  // Initial transform
+  applyTransform();
+</script>
+</body>
+</html>
